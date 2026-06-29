@@ -1,185 +1,261 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as faceapi from "face-api.js";
+import { Camera, RefreshCw, Music, Play, Square } from "lucide-react";
 
 export default function FaceExpressionDetector() {
-  const videoRef = useRef();
-
+  const videoRef = useRef(null);
   const [expression, setExpression] = useState("");
   const [songs, setSongs] = useState([]);
   const [playingIndex, setPlayingIndex] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+
+  const BACKEND_URL = "https://mood-player-backend.onrender.com";
 
   // Load Models
   const loadModels = async () => {
-    const MODEL_URL = "/models";
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-    startVideo();
+    try {
+      const MODEL_URL = "/models";
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+      startVideo();
+    } catch (error) {
+      console.error("Error loading models:", error);
+    }
   };
 
   const startVideo = () => {
-    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-      videoRef.current.srcObject = stream;
-    });
+    navigator.mediaDevices
+      .getUserMedia({ video: true })
+      .then((stream) => {
+        videoRef.current.srcObject = stream;
+        setIsCameraReady(true);
+      })
+      .catch((error) => {
+        console.error("Error accessing camera:", error);
+        setExpression("Camera access denied");
+      });
   };
 
   useEffect(() => {
     loadModels();
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      }
+    };
   }, []);
 
   // Detect Mood
   const detectMood = async () => {
-    const detection = await faceapi
-      .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-      .withFaceExpressions();
-
-    if (!detection) {
-      setExpression("No face detected");
+    if (!isCameraReady) {
+      setExpression("Camera not ready");
       return;
     }
 
-    const mood = Object.entries(detection.expressions).sort(
-      (a, b) => b[1] - a[1]
-    )[0][0];
+    setLoading(true);
+    try {
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .withFaceExpressions();
 
-    setExpression(mood);
-    fetchSongs(mood);
+      if (!detection) {
+        setExpression("No face detected");
+        setLoading(false);
+        return;
+      }
+
+      const mood = Object.entries(detection.expressions).sort(
+        (a, b) => b[1] - a[1]
+      )[0][0];
+
+      setExpression(mood);
+      await fetchSongs(mood);
+    } catch (error) {
+      console.error("Error detecting mood:", error);
+      setExpression("Detection failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Fetch songs
- const BACKEND_URL = "https://mood-player-backend.onrender.com";
+  const fetchSongs = async (mood) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/songs/${mood}`);
+      const data = await res.json();
+      setSongs(data.songs || []);
+      setPlayingIndex(null);
+    } catch (err) {
+      console.error(err);
+      setSongs([]);
+    }
+  };
 
-
-
-const fetchSongs = async (mood) => {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/songs/${mood}`);
-    const data = await res.json();
-    setSongs(data.songs || []);
-    setPlayingIndex(null);
-  } catch (err) {
-    console.error(err);
-  }
-};
+  // Get mood emoji
+  const getMoodEmoji = (mood) => {
+    const emojis = {
+      happy: "😊",
+      sad: "😢",
+      angry: "😠",
+      fearful: "😨",
+      disgusted: "🤢",
+      surprised: "😮",
+      neutral: "😐",
+    };
+    return emojis[mood?.toLowerCase()] || "🎵";
+  };
 
   return (
-    <div
-      className="
-        min-h-screen 
-        bg-gradient-to-br from-indigo-100 via-white to-purple-100 
-        flex flex-col items-center
-        px-4 py-10
-      "
-    >
-
-      {/* HEADER */}
-      <h1 className="text-5xl font-extrabold mb-3 bg-gradient-to-r from-indigo-600 to-purple-500 bg-clip-text text-transparent drop-shadow-lg">
-        Mood Music AI 🎵
-      </h1>
-
-      <p className="text-lg text-gray-600 max-w-xl text-center mb-10">
-        Let AI detect your facial expression and recommend Hindi songs that match your mood.
-      </p>
-
-      {/* WEBCAM CARD */}
-      <div
-        className="
-          w-full max-w-lg p-6 
-          bg-white/80 backdrop-blur-xl 
-          rounded-3xl shadow-2xl border border-white/40
-        "
-      >
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          className="w-full rounded-2xl shadow-lg"
-        />
-      </div>
-
-      {/* Detect Button */}
-      <button
-        onClick={detectMood}
-        className="
-          mt-8 px-10 py-4 rounded-2xl
-          bg-gradient-to-r from-indigo-600 to-purple-500 
-          text-white text-lg font-semibold shadow-xl
-          hover:shadow-2xl hover:scale-[1.03] active:scale-95
-          transition-all
-        "
-      >
-        Detect Mood & Suggest Songs
-      </button>
-
-      {/* Mood Display */}
-      <h2 className="mt-6 text-3xl font-bold tracking-wide">
-        Mood:{" "}
-        <span className="text-purple-600 capitalize">
-          {expression || "Please Scan"}
-        </span>
-      </h2>
-
-      {/* SONGS SECTION */}
-      {songs.length > 0 && (
-        <div className="w-full max-w-6xl mt-16">
-
-          <h2 className="text-4xl font-extrabold text-center text-indigo-600 mb-6">
-            Recommended Songs
-          </h2>
-
-          <div
-            className="
-              flex gap-8 overflow-x-auto no-scrollbar 
-              px-4 py-6 snap-x snap-mandatory
-            "
-          >
-            {songs.map((s, i) => (
-              <div
-                key={i}
-                className="
-                  min-w-[300px] bg-white/90 backdrop-blur-xl
-                  rounded-3xl p-5 shadow-xl border border-white
-                  hover:shadow-2xl hover:-translate-y-1 
-                  transition-all snap-start
-                "
-              >
-                {/* Thumbnail or video */}
-                {playingIndex !== i ? (
-                  <img
-                    src={`https://img.youtube.com/vi/${s.videoId}/hqdefault.jpg`}
-                    className="rounded-2xl w-full h-48 object-cover shadow-md"
-                  />
-                ) : (
-                  <iframe
-                    className="rounded-2xl w-full h-48"
-                    src={`https://www.youtube.com/embed/${s.videoId}?autoplay=1`}
-                    allowFullScreen
-                  ></iframe>
-                )}
-
-                {/* Song Title */}
-                <h3 className="mt-3 font-bold text-lg text-gray-800 line-clamp-2">
-                  {s.title}
-                </h3>
-
-                {/* Play Button */}
-                <button
-                  onClick={() =>
-                    setPlayingIndex(playingIndex === i ? null : i)
-                  }
-                  className="
-                    mt-4 w-full py-2 rounded-xl 
-                    bg-gradient-to-r from-indigo-600 to-purple-500
-                    text-white font-semibold shadow-md
-                    hover:scale-[1.02] active:scale-95 transition-all
-                  "
-                >
-                  {playingIndex === i ? "⏸ Stop" : "▶ Play"}
-                </button>
-              </div>
-            ))}
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50/80 via-white to-purple-50/80 px-4 py-12 flex flex-col items-center">
+      
+      <div className="max-w-6xl w-full">
+        
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 tracking-tight">
+            Mood Music AI
+          </h1>
+          <p className="text-sm text-gray-500 max-w-md mx-auto">
+            Let AI detect your facial expression and recommend Hindi songs that match your mood.
+          </p>
         </div>
-      )}
+
+        {/* Webcam & Controls */}
+        <div className="flex flex-col items-center">
+          
+          {/* Webcam Card */}
+          <div className="w-full max-w-md bg-white/70 backdrop-blur-sm rounded-xl border border-white/50 shadow-sm overflow-hidden">
+            <div className="relative aspect-video bg-gray-100">
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                className="w-full h-full object-cover"
+              />
+              {!isCameraReady && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                  <div className="text-center">
+                    <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-xs text-gray-400">Starting camera...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Detect Button */}
+          <button
+            onClick={detectMood}
+            disabled={loading}
+            className="mt-6 px-6 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+          >
+            {loading ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Detecting...
+              </>
+            ) : (
+              <>
+                <Camera className="w-4 h-4" />
+                Detect Mood
+              </>
+            )}
+          </button>
+
+          {/* Mood Display */}
+          {expression && (
+            <div className="mt-4 flex items-center gap-2 px-4 py-2 bg-white/70 backdrop-blur-sm rounded-lg border border-white/50">
+              <span className="text-xl">{getMoodEmoji(expression)}</span>
+              <span className="text-sm font-medium text-gray-700 capitalize">
+                {expression}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Songs Section */}
+        {songs.length > 0 && (
+          <div className="mt-12">
+            <div className="flex items-center gap-2 mb-4">
+              <Music className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-sm font-semibold text-gray-700">
+                Recommended Songs
+              </h2>
+              <span className="text-xs text-gray-400">({songs.length})</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {songs.map((song, index) => (
+                <div
+                  key={index}
+                  className="group bg-white/70 backdrop-blur-sm rounded-xl border border-white/50 shadow-sm hover:shadow-md hover:border-indigo-200/50 transition-all duration-300 overflow-hidden"
+                >
+                  {/* Thumbnail/Video */}
+                  <div className="relative aspect-video bg-gray-100">
+                    {playingIndex !== index ? (
+                      <img
+                        src={`https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg`}
+                        alt={song.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <iframe
+                        className="w-full h-full"
+                        src={`https://www.youtube.com/embed/${song.videoId}?autoplay=1`}
+                        allowFullScreen
+                        allow="autoplay"
+                      ></iframe>
+                    )}
+                  </div>
+
+                  {/* Song Info */}
+                  <div className="p-4">
+                    <h3 className="text-sm font-medium text-gray-900 line-clamp-1">
+                      {song.title}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {song.artist || "Unknown Artist"}
+                    </p>
+
+                    {/* Play Button */}
+                    <button
+                      onClick={() =>
+                        setPlayingIndex(playingIndex === index ? null : index)
+                      }
+                      className="mt-3 w-full px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-600 text-xs font-medium hover:bg-indigo-100 transition-colors inline-flex items-center justify-center gap-1.5"
+                    >
+                      {playingIndex === index ? (
+                        <>
+                          <Square className="w-3 h-3" />
+                          Stop
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3" />
+                          Play
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && !expression && songs.length === 0 && (
+          <div className="mt-12 text-center">
+            <div className="inline-flex p-4 rounded-full bg-white/50 border border-white/50 mb-3">
+              <Music className="w-6 h-6 text-gray-300" />
+            </div>
+            <p className="text-xs text-gray-400">
+              Click "Detect Mood" to get song recommendations
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

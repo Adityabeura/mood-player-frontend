@@ -1,84 +1,91 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Music, Home, Sparkles, Music2, Info, ScanFace } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Music, Menu, X } from "lucide-react";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const location = useLocation();
+
+  const navLinks = [
+    { to: "/", label: "Home" },
+    { to: "/features", label: "Features" },
+    { to: "/songs", label: "Songs" },
+    { to: "/about", label: "About" },
+  ];
+
+  const isActive = (path) => location.pathname === path;
 
   return (
-    <header className="w-full px-6 py-5 bg-white shadow-md flex justify-between items-center sticky top-0 z-50">
+    <nav className="w-full px-6 md:px-12 py-4 bg-white/80 backdrop-blur-sm border-b border-gray-200/50 fixed top-0 z-50">
+      <div className="max-w-6xl mx-auto flex justify-between items-center">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded bg-indigo-600 flex items-center justify-center">
+            <Music className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-base font-medium text-gray-900 tracking-tight">
+            MoodMusic
+          </span>
+        </Link>
 
-      {/* Logo */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-lg">
-          <Music className="w-6 h-6" />
+        {/* Desktop Navigation */}
+        <div className="hidden md:flex items-center gap-8">
+          {navLinks.map(({ to, label }) => (
+            <Link
+              key={to}
+              to={to}
+              className={`text-sm transition-colors ${
+                isActive(to)
+                  ? "text-indigo-600 font-medium"
+                  : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+          <Link
+            to="/detector"
+            className="px-4 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+          >
+            Get Started
+          </Link>
         </div>
-        <Link to="/" className="text-xl font-bold text-gray-900">MoodMusic</Link>
-      </div>
 
-      {/* Desktop Nav */}
-      <nav className="hidden md:flex items-center gap-8 text-gray-700 font-medium">
-        <Link to="/" className="flex items-center gap-2 hover:text-indigo-600">
-          <Home className="w-5 h-5" /> Home
-        </Link>
-
-        <Link to="/features" className="flex items-center gap-2 hover:text-indigo-600">
-          <Sparkles className="w-5 h-5" /> Features
-        </Link>
-
-        <Link to="/songs" className="flex items-center gap-2 hover:text-indigo-600">
-          <Music2 className="w-5 h-5" /> Songs
-        </Link>
-
-        <Link to="/about" className="flex items-center gap-2 hover:text-indigo-600">
-          <Info className="w-5 h-5" /> About
-        </Link>
-
-        <Link
-          to="/detector"
-          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-white shadow hover:bg-indigo-700"
+        {/* Mobile Menu Button */}
+        <button
+          className="md:hidden p-1.5 rounded hover:bg-gray-100 transition-colors"
+          onClick={() => setOpen(!open)}
         >
-          <ScanFace className="w-5 h-5" /> Get Started
-        </Link>
-      </nav>
-
-      {/* Mobile Menu Button */}
-      <button
-        className="md:hidden text-gray-700 text-3xl"
-        onClick={() => setOpen(!open)}
-      >
-        {open ? "✖" : "☰"}
-      </button>
+          {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </div>
 
       {/* Mobile Menu */}
       {open && (
-        <div className="absolute top-full left-0 w-full bg-white shadow-xl p-6 flex flex-col gap-4 md:hidden text-gray-700 font-medium">
-
-          <Link to="/" onClick={() => setOpen(false)} className="flex items-center gap-2">
-            <Home className="w-5 h-5" /> Home
-          </Link>
-
-          <Link to="/features" onClick={() => setOpen(false)} className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5" /> Features
-          </Link>
-
-          <Link to="/songs" onClick={() => setOpen(false)} className="flex items-center gap-2">
-            <Music2 className="w-5 h-5" /> Songs
-          </Link>
-
-          <Link to="/about" onClick={() => setOpen(false)} className="flex items-center gap-2">
-            <Info className="w-5 h-5" /> About
-          </Link>
-
+        <div className="md:hidden absolute top-full left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-gray-200/50 p-4 flex flex-col gap-1">
+          {navLinks.map(({ to, label }) => (
+            <Link
+              key={to}
+              to={to}
+              onClick={() => setOpen(false)}
+              className={`px-3 py-2 rounded text-sm transition-colors ${
+                isActive(to)
+                  ? "bg-indigo-50 text-indigo-600 font-medium"
+                  : "text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
           <Link
             to="/detector"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-white shadow"
+            className="px-3 py-2 rounded bg-indigo-600 text-white text-sm font-medium text-center hover:bg-indigo-700 transition-colors mt-1"
           >
-            <ScanFace className="w-5 h-5" /> Get Started
+            Get Started
           </Link>
         </div>
       )}
-    </header>
+    </nav>
   );
 }
